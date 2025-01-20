@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipment Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<style>
+    .card {
+        border-radius: 10px;
+        background-color: rgb(147, 183, 220);
+    }
+    .header {
+        border-radius: 5px;
+        background-color: #2e4c9a;
+        color: white;
+    }
+    h6 {
+        font-size: 21px;
+        color: azure;
+    }
+    p {
+        color: azure;
+    }
+    .contact-info {
+        font-size: 21px;
+    }
+</style>
+
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header d-flex justify-content-between align-items-center p-3">
+            <a href="index.html" class="text-white text-decoration-none fs-5">&larr; Back</a>
+            <h5 class="m-0">PAPS: <span id="paps-number">...</span></h5>
+            <img src="./BorderVisionPhotos/flying_Vs_bw.png" alt="Company Logo" height="30" class="img-fluid" style="max-height: 40px;">
+        </div>
+
+        <!-- Tracking Info Card -->
+        <div class="card p-3 mt-4">
+            <h4 class="text-center">Entry Information</h4>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Entry Number:</h6>
+                    <p id="entry-number" class="fw-bold">...</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Status:</h6>
+                    <div class="progress">
+                        <div id="status-bar" class="progress-bar" role="progressbar" style="width: 0%;">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Section -->
+        <div class="card p-3 mt-4">
+            <h4 class="text-center">Detail</h4>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Port of Entry:</h6>
+                    <p id="port-entry">...</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Port Code:</h6>
+                    <p id="port-code">...</p>
+                </div>
+            </div>
+            <div class="mt-2">
+                <h6>Entry Port ETA:</h6>
+                <p id="port-eta">...</p>
+            </div>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="card contact-card p-3 mt-4">
+            <h4 class="text-center">Contact</h4>
+            <hr>
+            <p class="contact-info">📞 Phone: <span id="phone-number">...</span></p>
+            <p class="contact-info">📧 Email: <a href="#" id="email">...</a></p>
+        </div>
+    </div>
+
+    <script>
+        async function getAccessToken() {
+            try {
+                const url = "https://valexanderexternalapidev.auth.us-east-1.amazoncognito.com/oauth2/token";
+                const params = new URLSearchParams();
+                params.append("grant_type", "client_credentials");
+                params.append("scope", "eadaptor-rest-api/eadaptor.write");
+                params.append("client_id", "3u7j8lnb7mfkp4geut3jasg8st");
+                params.append("client_secret", "1br28m17bs8fc74u2c3t7eqi35jq8i9a9196cfl1ogjaoqngovm5");
+
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: params
+                });
+
+                if (!response.ok) throw new Error("Failed to get access token");
+
+                const data = await response.json();
+                return data.access_token;
+            } catch (error) {
+                console.error("Token Error:", error.message);
+                document.getElementById("entry-number").textContent = "Error: Unable to get token.";
+            }
+        }
+
+        async function fetchPAPSData(papsNumber) {
+            try {
+                const token = await getAccessToken();
+                if (!token) throw new Error("Authentication failed. No token retrieved.");
+
+                const url = `https://dev.cargowise.valexanderapis.com/api/oidc/paps/${papsNumber}`;
+                console.log("Fetching API:", url);
+
+                const response = await fetch(url, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "x-api-key": "3u7j8lnb7mfkp4geut3jasg8st"
+                    }
+                });
+
+                if (!response.ok) throw new Error("PAPS not found or API error.");
+
+                const data = await response.json();
+                console.log("API Response:", data);
+                updatePageData(data);
+            } catch (error) {
+                console.error("API Fetch Error:", error.message);
+                document.getElementById("entry-number").textContent = "Error: " + error.message;
+            }
+        }
+
+        function updatePageData(data) {
+            document.getElementById("paps-number").textContent = data.papsNumber || "N/A";
+            document.getElementById("entry-number").textContent = data.entryNumber || "N/A";
+            document.getElementById("port-entry").textContent = data.portOfEntry || "N/A";
+            document.getElementById("port-code").textContent = data.portCode || "N/A";
+            document.getElementById("port-eta").textContent = data.eta || "N/A";
+            document.getElementById("phone-number").textContent = data.contactPhone || "N/A";
+            document.getElementById("email").textContent = data.contactEmail || "N/A";
+            document.getElementById("email").href = "mailto:" + (data.contactEmail || "");
+
+            const statusBar = document.getElementById("status-bar");
+            if (data.status === "Cleared") {
+                statusBar.style.width = "100%";
+                statusBar.classList.add("bg-success");
+                statusBar.textContent = "Cleared";
+            } else if (data.status === "In Transit") {
+                statusBar.style.width = "50%";
+                statusBar.classList.add("bg-warning");
+                statusBar.textContent = "In Transit";
+            } else {
+                statusBar.style.width = "20%";
+                statusBar.classList.add("bg-danger");
+                statusBar.textContent = "Pending";
+            }
+        }
+
+        // Extract PAPS number from the URL and fetch data
+        const urlParams = new URLSearchParams(window.location.search);
+        const papsNumber = urlParams.get("paps");
+
+        if (papsNumber) {
+            fetchPAPSData(papsNumber);
+        } else {
+            document.getElementById("entry-number").textContent = "No PAPS number provided.";
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
